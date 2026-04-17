@@ -68,6 +68,26 @@ h1 {
   outline-offset: 2px;
 }
 
+.interval-submit-row {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 16px;
+}
+
+.interval-submit-button {
+  padding: 14px 20px;
+  border-radius: 14px;
+  border: none;
+  background: var(--accent);
+  color: white;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.interval-submit-button:hover {
+  opacity: 0.95;
+}
+
 .summary-row {
   display: flex;
   flex-wrap: wrap;

@@ -104,6 +104,9 @@ function App() {
   const [params, setParams] = useState<Params>(() =>
     parseSearchParams(window.location.search),
   );
+  const [intervalCountInput, setIntervalCountInput] = useState(
+    String(params.intervalCount),
+  );
   const [batchSize, setBatchSize] = useState(1);
   const [batchGrids, setBatchGrids] = useState<string[][]>([]);
 
@@ -123,8 +126,34 @@ function App() {
     setBatchGrids([]);
   }, [params]);
 
+  useEffect(() => {
+    setIntervalCountInput(String(params.intervalCount));
+  }, [params.intervalCount]);
+
   const handleBatchSize = (event: ChangeEvent<HTMLInputElement>) => {
     setBatchSize(clamp(Number(event.target.value), 1, 50));
+  };
+
+  const handleSubmitIntervalCount = () => {
+    const requestedCount = Number(intervalCountInput);
+    const clampedCount = Number.isNaN(requestedCount)
+      ? 1
+      : clamp(requestedCount, 1, params.intervalLengthMin);
+    const validCount = chooseClosestDivisor(
+      params.intervalLengthMin,
+      clampedCount,
+    );
+
+    if (validCount !== clampedCount) {
+      window.alert(
+        `The closest valid interval count is ${validCount}. This value will be applied.`,
+      );
+    }
+
+    setParams((current) =>
+      normalizeParams({ ...current, intervalCount: validCount }),
+    );
+    setIntervalCountInput(String(validCount));
   };
 
   const handleGenerateBatch = () => {
@@ -202,6 +231,8 @@ function App() {
               onChange={handleInput}
             />
           </label>
+        </div>
+        <div className="control-row">
           <label>
             Time intervals
             <input
@@ -209,10 +240,19 @@ function App() {
               name="intervalCount"
               min={1}
               max={params.intervalLengthMin}
-              value={params.intervalCount}
-              onChange={handleInput}
+              value={intervalCountInput}
+              onChange={(event) => {
+                setIntervalCountInput(event.target.value);
+              }}
             />
           </label>
+          <button
+            type="button"
+            className="interval-submit-button"
+            onClick={handleSubmitIntervalCount}
+          >
+            Submit intervals
+          </button>
         </div>
 
         <div className="summary-row">
