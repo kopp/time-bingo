@@ -5,7 +5,7 @@ import "./App.css";
 type Params = {
   rows: number;
   cols: number;
-  interval: number;
+  intervalLengthMin: number;
   intervalCount: number;
 };
 
@@ -37,7 +37,7 @@ const chooseClosestDivisor = (interval: number, target: number) => {
 const normalizeParams = (raw: Partial<Params>): Params => {
   const rows = clamp(raw.rows ?? DEFAULT_ROWS, 1, 25);
   const cols = clamp(raw.cols ?? DEFAULT_COLS, 1, 25);
-  const interval = clamp(raw.interval ?? DEFAULT_INTERVAL, 1, 1440);
+  const interval = clamp(raw.intervalLengthMin ?? DEFAULT_INTERVAL, 1, 1440);
   const targetCount = rows * cols * 2;
   const defaultCount = chooseClosestDivisor(interval, targetCount);
   let intervalCount = clamp(raw.intervalCount ?? defaultCount, 1, interval);
@@ -49,7 +49,7 @@ const normalizeParams = (raw: Partial<Params>): Params => {
   return {
     rows,
     cols,
-    interval,
+    intervalLengthMin: interval,
     intervalCount,
   };
 };
@@ -64,23 +64,26 @@ const parseSearchParams = (search: string): Params => {
   return normalizeParams({
     rows: parseNumber("rows"),
     cols: parseNumber("cols"),
-    interval: parseNumber("interval"),
+    intervalLengthMin: parseNumber("interval"),
     intervalCount: parseNumber("intervalCount"),
   });
 };
 
-const formatTime = (minutes: number) => {
+const formatTime = (minutes: number): string => {
   const hours = Math.floor(minutes / 60);
   const mins = minutes % 60;
-  return `${String(hours).padStart(2, "0")}:${String(mins).padStart(2, "0")}`;
+  return `${String(hours)}:${String(mins).padStart(2, "0")}`;
 };
 
-const generateIntervals = (interval: number, intervalCount: number) => {
-  const slice = interval / intervalCount;
-  const startMinute = 9 * 60;
+const generateIntervals = (
+  intervalDurationMin: number,
+  intervalCount: number,
+) => {
+  const sliceDurationMin = intervalDurationMin / intervalCount;
+  const startMinute = 0;
   return Array.from({ length: intervalCount }, (_, index) => {
-    const start = startMinute + index * slice;
-    const end = startMinute + (index + 1) * slice;
+    const start = startMinute + index * sliceDurationMin;
+    const end = startMinute + (index + 1) * sliceDurationMin;
     return `${formatTime(start)} - ${formatTime(end)}`;
   });
 };
@@ -106,7 +109,7 @@ function App() {
     const search = new URLSearchParams({
       rows: String(params.rows),
       cols: String(params.cols),
-      interval: String(params.interval),
+      interval: String(params.intervalLengthMin),
       intervalCount: String(params.intervalCount),
     }).toString();
 
@@ -115,8 +118,8 @@ function App() {
   }, [params]);
 
   const intervalLabels = useMemo(
-    () => generateIntervals(params.interval, params.intervalCount),
-    [params.interval, params.intervalCount],
+    () => generateIntervals(params.intervalLengthMin, params.intervalCount),
+    [params.intervalLengthMin, params.intervalCount],
   );
 
   const gridItems = useMemo(
@@ -174,7 +177,7 @@ function App() {
               name="interval"
               min={1}
               max={1440}
-              value={params.interval}
+              value={params.intervalLengthMin}
               onChange={handleInput}
             />
           </label>
@@ -184,7 +187,7 @@ function App() {
               type="number"
               name="intervalCount"
               min={1}
-              max={params.interval}
+              max={params.intervalLengthMin}
               value={params.intervalCount}
               onChange={handleInput}
             />
@@ -194,7 +197,9 @@ function App() {
         <div className="summary-row">
           <p>
             Slot length:{" "}
-            <strong>{params.interval / params.intervalCount} minutes</strong>
+            <strong>
+              {params.intervalLengthMin / params.intervalCount} minutes
+            </strong>
           </p>
           <p>
             Candidate intervals: <strong>{intervalLabels.length}</strong>
