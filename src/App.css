@@ -105,6 +105,130 @@ h1 {
   box-shadow: var(--shadow);
 }
 
+.batch-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+.batch-controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+  align-items: end;
+}
+
+.batch-controls label {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  font-size: 0.95rem;
+  color: var(--text-h);
+}
+
+.batch-controls input {
+  width: 120px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 12px 14px;
+  font: inherit;
+  color: var(--text-h);
+  background: var(--bg);
+}
+
+.batch-button {
+  padding: 14px 20px;
+  border-radius: 14px;
+  border: none;
+  background: var(--accent);
+  color: white;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.batch-button:hover {
+  opacity: 0.95;
+}
+
+.print-batch {
+  display: flex;
+  flex-direction: column;
+  gap: 32px;
+}
+
+.print-grid-page {
+  background: white;
+  padding: 20px;
+  border: 1px solid #000;
+  border-radius: 12px;
+  page-break-after: always;
+  break-after: page;
+}
+
+.print-grid {
+  display: grid;
+  gap: 0;
+}
+
+.print-cell {
+  min-height: 96px;
+  padding: 14px;
+  border: 1px solid #000;
+  display: grid;
+  place-items: center;
+  color: #000;
+  background: #fff;
+  font-weight: 600;
+  font-size: 0.95rem;
+  text-align: center;
+}
+
+@media print {
+  body,
+  html {
+    background: #fff;
+    color: #000;
+  }
+
+  .app-shell {
+    padding: 0;
+    gap: 0;
+  }
+
+  .hero-panel,
+  .controls-panel,
+  .grid-panel,
+  .batch-controls {
+    display: none;
+  }
+
+  .print-batch,
+  .print-grid-page {
+    margin: 0;
+    border: none;
+    box-shadow: none;
+    background: #fff;
+  }
+
+  .print-grid {
+    gap: 0;
+    border: 1px solid #000;
+  }
+
+  .grid-cell,
+  .print-cell {
+    background: #fff;
+    color: #000;
+    box-shadow: none;
+    border: 1px solid #000;
+  }
+
+  .print-grid-page {
+    page-break-after: always;
+    break-after: page;
+  }
+}
+
 @media (max-width: 960px) {
   .control-row {
     grid-template-columns: repeat(2, minmax(160px, 1fr));

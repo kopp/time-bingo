@@ -104,6 +104,8 @@ function App() {
   const [params, setParams] = useState<Params>(() =>
     parseSearchParams(window.location.search),
   );
+  const [batchSize, setBatchSize] = useState(1);
+  const [batchGrids, setBatchGrids] = useState<string[][]>([]);
 
   useEffect(() => {
     const search = new URLSearchParams({
@@ -116,6 +118,25 @@ function App() {
     const nextUrl = `${window.location.pathname}?${search}`;
     window.history.replaceState({}, "", nextUrl);
   }, [params]);
+
+  useEffect(() => {
+    setBatchGrids([]);
+  }, [params]);
+
+  const handleBatchSize = (event: ChangeEvent<HTMLInputElement>) => {
+    setBatchSize(clamp(Number(event.target.value), 1, 50));
+  };
+
+  const handleGenerateBatch = () => {
+    if (batchSize < 1) {
+      return;
+    }
+    setBatchGrids(
+      Array.from({ length: batchSize }, () =>
+        getRandomGrid(intervalLabels, params.rows * params.cols),
+      ),
+    );
+  };
 
   const intervalLabels = useMemo(
     () => generateIntervals(params.intervalLengthMin, params.intervalCount),
@@ -220,6 +241,52 @@ function App() {
             </div>
           ))}
         </div>
+      </section>
+
+      <section className="batch-panel">
+        <div className="batch-controls">
+          <label>
+            Generate a printable version with one grid per sheet:
+            <input
+              type="number"
+              min={1}
+              max={50}
+              value={batchSize}
+              onChange={handleBatchSize}
+            />
+          </label>
+          <button
+            type="button"
+            className="batch-button"
+            onClick={handleGenerateBatch}
+          >
+            Generate {batchSize} printable grids
+          </button>
+        </div>
+
+        {batchGrids.length > 0 && (
+          <div className="print-batch">
+            {batchGrids.map((grid, batchIndex) => (
+              <div key={batchIndex} className="print-grid-page">
+                <h2>
+                  Time Bingo {batchIndex + 1} / {batchGrids.length}
+                </h2>
+                <div
+                  className="print-grid"
+                  style={{
+                    gridTemplateColumns: `repeat(${params.cols}, minmax(120px, 1fr))`,
+                  }}
+                >
+                  {grid.map((label, index) => (
+                    <div key={`${batchIndex}-${index}`} className="print-cell">
+                      {label}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
       </section>
     </main>
   );
