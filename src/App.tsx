@@ -7,11 +7,13 @@ type Params = {
   cols: number;
   intervalLengthMin: number;
   intervalCount: number;
+  startTime: number;
 };
 
 const DEFAULT_ROWS = 5;
 const DEFAULT_COLS = 5;
 const DEFAULT_INTERVAL = 90;
+const DEFAULT_START_TIME = 9 * 60; // 9:00 in minutes
 
 const clamp = (value: number, min: number, max: number) =>
   Number.isNaN(value) ? min : Math.min(Math.max(value, min), max);
@@ -34,6 +36,28 @@ const chooseClosestDivisor = (interval: number, target: number) => {
   }, divisors[0]);
 };
 
+const parseTime = (timeStr: string): number => {
+  const parts = timeStr.split(":").map(Number);
+  if (parts.length !== 2 || Number.isNaN(parts[0]) || Number.isNaN(parts[1])) {
+    return 0;
+  }
+  return parts[0] * 60 + parts[1];
+};
+
+const isValidTimeFormat = (timeStr: string): boolean => {
+  const parts = timeStr.split(":");
+  if (parts.length !== 2) return false;
+  const [hours, mins] = parts.map(Number);
+  return (
+    !Number.isNaN(hours) &&
+    !Number.isNaN(mins) &&
+    hours >= 0 &&
+    hours < 24 &&
+    mins >= 0 &&
+    mins < 60
+  );
+};
+
 const normalizeParams = (raw: Partial<Params>): Params => {
   const rows = clamp(raw.rows ?? DEFAULT_ROWS, 1, 25);
   const cols = clamp(raw.cols ?? DEFAULT_COLS, 1, 25);
@@ -46,11 +70,24 @@ const normalizeParams = (raw: Partial<Params>): Params => {
     intervalCount = defaultCount;
   }
 
+  let startTime = DEFAULT_START_TIME;
+  if (raw.startTime !== undefined) {
+    if (typeof raw.startTime === "number") {
+      startTime = clamp(raw.startTime, 0, 24 * 60 - 1);
+    } else if (
+      typeof raw.startTime === "string" &&
+      isValidTimeFormat(raw.startTime)
+    ) {
+      startTime = parseTime(raw.startTime);
+    }
+  }
+
   return {
     rows,
     cols,
     intervalLengthMin: interval,
     intervalCount,
+    startTime,
   };
 };
 
@@ -61,11 +98,18 @@ const parseSearchParams = (search: string): Params => {
     return value === null ? undefined : Number(value);
   };
 
+  const startTimeStr = params.get("startTime");
+  const startTime =
+    startTimeStr && isValidTimeFormat(startTimeStr)
+      ? parseTime(startTimeStr)
+      : undefined;
+
   return normalizeParams({
     rows: parseNumber("rows"),
     cols: parseNumber("cols"),
     intervalLengthMin: parseNumber("interval"),
     intervalCount: parseNumber("intervalCount"),
+    startTime,
   });
 };
 
@@ -78,12 +122,12 @@ const formatTime = (minutes: number): string => {
 const generateIntervals = (
   intervalDurationMin: number,
   intervalCount: number,
+  startTimeMin: number,
 ) => {
   const sliceDurationMin = intervalDurationMin / intervalCount;
-  const startMinute = 0;
   return Array.from({ length: intervalCount }, (_, index) => {
-    const start = startMinute + index * sliceDurationMin;
-    const end = startMinute + (index + 1) * sliceDurationMin;
+    const start = startTimeMin + index * sliceDurationMin;
+    const end = startTimeMin + (index + 1) * sliceDurationMin;
     return `${formatTime(start)} - ${formatTime(end)}`;
   });
 };
@@ -104,10 +148,18 @@ function App() {
   const [params, setParams] = useState<Params>(() =>
     parseSearchParams(window.location.search),
   );
+  const [rowsInput, setRowsInput] = useState(String(params.rows));
+  const [colsInput, setColsInput] = useState(String(params.cols));
+  const [intervalInput, setIntervalInput] = useState(
+    String(params.intervalLengthMin),
+  );
   const [intervalCountInput, setIntervalCountInput] = useState(
     String(params.intervalCount),
   );
-  const [batchSize, setBatchSize] = useState(1);
+  const [startTimeInput, setStartTimeInput] = useState(
+    formatTime(params.startTime),
+  );
+  const [batchSizeInput, setBatchSizeInput] = useState(String(1));
   const [batchGrids, setBatchGrids] = useState<string[][]>([]);
 
   useEffect(() => {
@@ -116,6 +168,7 @@ function App() {
       cols: String(params.cols),
       interval: String(params.intervalLengthMin),
       intervalCount: String(params.intervalCount),
+      startTime: formatTime(params.startTime),
     }).toString();
 
     const nextUrl = `${window.location.pathname}?${search}`;
@@ -126,37 +179,61 @@ function App() {
     setBatchGrids([]);
   }, [params]);
 
-  useEffect(() => {
-    setIntervalCountInput(String(params.intervalCount));
-  }, [params.intervalCount]);
-
   const handleBatchSize = (event: ChangeEvent<HTMLInputElement>) => {
-    setBatchSize(clamp(Number(event.target.value), 1, 50));
+    setBatchSizeInput(event.target.value);
   };
 
-  const handleSubmitIntervalCount = () => {
-    const requestedCount = Number(intervalCountInput);
-    const clampedCount = Number.isNaN(requestedCount)
-      ? 1
-      : clamp(requestedCount, 1, params.intervalLengthMin);
-    const validCount = chooseClosestDivisor(
-      params.intervalLengthMin,
-      clampedCount,
+  const handleGenerateSheet = () => {
+    const rows = clamp(Number(rowsInput) || params.rows, 1, 25);
+    const cols = clamp(Number(colsInput) || params.cols, 1, 25);
+    const interval = clamp(
+      Number(intervalInput) || params.intervalLengthMin,
+      1,
+      1440,
+    );
+    let intervalCount = clamp(
+      Number(intervalCountInput) || params.intervalCount,
+      1,
+      interval,
     );
 
-    if (validCount !== clampedCount) {
+    const originalIntervalCount = intervalCount;
+    if (interval % intervalCount !== 0) {
+      intervalCount = chooseClosestDivisor(interval, intervalCount);
       window.alert(
-        `The closest valid interval count is ${validCount}. This value will be applied.`,
+        `The closest valid interval count is ${intervalCount}. This value will be applied.`,
       );
     }
 
-    setParams((current) =>
-      normalizeParams({ ...current, intervalCount: validCount }),
+    let startTime = params.startTime;
+    if (isValidTimeFormat(startTimeInput)) {
+      startTime = parseTime(startTimeInput);
+    } else {
+      window.alert("Invalid start time format. Please use HH:MM format.");
+      setStartTimeInput(formatTime(params.startTime));
+    }
+
+    setParams(
+      normalizeParams({
+        rows,
+        cols,
+        intervalLengthMin: interval,
+        intervalCount,
+        startTime,
+      }),
     );
-    setIntervalCountInput(String(validCount));
+
+    setRowsInput(String(rows));
+    setColsInput(String(cols));
+    setIntervalInput(String(interval));
+    setIntervalCountInput(String(intervalCount));
+    setStartTimeInput(formatTime(startTime));
   };
 
   const handleGenerateBatch = () => {
+    const batchSize = clamp(Number(batchSizeInput), 1, 50);
+    setBatchSizeInput(String(batchSize));
+
     if (batchSize < 1) {
       return;
     }
@@ -168,20 +245,19 @@ function App() {
   };
 
   const intervalLabels = useMemo(
-    () => generateIntervals(params.intervalLengthMin, params.intervalCount),
-    [params.intervalLengthMin, params.intervalCount],
+    () =>
+      generateIntervals(
+        params.intervalLengthMin,
+        params.intervalCount,
+        params.startTime,
+      ),
+    [params.intervalLengthMin, params.intervalCount, params.startTime],
   );
 
   const gridItems = useMemo(
     () => getRandomGrid(intervalLabels, params.rows * params.cols),
     [intervalLabels, params.rows, params.cols],
   );
-
-  const handleInput = (event: ChangeEvent<HTMLInputElement>) => {
-    const name = event.target.name as keyof Params;
-    const value = clamp(Number(event.target.value), 1, 1440);
-    setParams((current) => normalizeParams({ ...current, [name]: value }));
-  };
 
   return (
     <main className="app-shell">
@@ -202,33 +278,39 @@ function App() {
             Rows
             <input
               type="number"
-              name="rows"
               min={1}
               max={25}
-              value={params.rows}
-              onChange={handleInput}
+              value={rowsInput}
+              onChange={(event) => setRowsInput(event.target.value)}
+              onKeyDown={(event) => {
+                if (event.key === "Enter") handleGenerateSheet();
+              }}
             />
           </label>
           <label>
             Columns
             <input
               type="number"
-              name="cols"
               min={1}
               max={25}
-              value={params.cols}
-              onChange={handleInput}
+              value={colsInput}
+              onChange={(event) => setColsInput(event.target.value)}
+              onKeyDown={(event) => {
+                if (event.key === "Enter") handleGenerateSheet();
+              }}
             />
           </label>
           <label>
             Total interval (min)
             <input
               type="number"
-              name="interval"
               min={1}
               max={1440}
-              value={params.intervalLengthMin}
-              onChange={handleInput}
+              value={intervalInput}
+              onChange={(event) => setIntervalInput(event.target.value)}
+              onKeyDown={(event) => {
+                if (event.key === "Enter") handleGenerateSheet();
+              }}
             />
           </label>
         </div>
@@ -237,21 +319,42 @@ function App() {
             Time intervals
             <input
               type="number"
-              name="intervalCount"
               min={1}
-              max={params.intervalLengthMin}
               value={intervalCountInput}
               onChange={(event) => {
                 setIntervalCountInput(event.target.value);
+              }}
+              onKeyDown={(event) => {
+                if (event.key === "Enter") handleGenerateSheet();
+              }}
+            />
+          </label>
+          <label>
+            Start time (HH:MM)
+            <input
+              type="text"
+              value={startTimeInput}
+              onChange={(event) => {
+                setStartTimeInput(event.target.value);
+              }}
+              onKeyDown={(event) => {
+                if (event.key === "Enter") handleGenerateSheet();
+              }}
+              placeholder="HH:MM"
+              style={{
+                backgroundColor:
+                  startTimeInput !== "" && !isValidTimeFormat(startTimeInput)
+                    ? "#ffcccc"
+                    : "",
               }}
             />
           </label>
           <button
             type="button"
-            className="interval-submit-button"
-            onClick={handleSubmitIntervalCount}
+            className="generate-sheet-button"
+            onClick={handleGenerateSheet}
           >
-            Submit intervals
+            Generate sheet
           </button>
         </div>
 
@@ -291,7 +394,7 @@ function App() {
               type="number"
               min={1}
               max={50}
-              value={batchSize}
+              value={batchSizeInput}
               onChange={handleBatchSize}
             />
           </label>
@@ -300,7 +403,7 @@ function App() {
             className="batch-button"
             onClick={handleGenerateBatch}
           >
-            Generate {batchSize} printable grids
+            Generate {batchSizeInput} printable grids
           </button>
         </div>
 
