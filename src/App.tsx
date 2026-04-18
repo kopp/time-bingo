@@ -109,6 +109,8 @@ const normalizeParams = (raw: Partial<Params>): Params => {
   };
 };
 
+const getRandomSeed = () => Math.floor(Math.random() * 2147483647) + 1;
+
 const parseSearchParams = (search: string): Params => {
   const params = new URLSearchParams(search);
   const parseNumber = (key: string) => {
@@ -123,10 +125,7 @@ const parseSearchParams = (search: string): Params => {
       : undefined;
 
   const seedFromUrl = parseNumber("seed");
-  const seed =
-    seedFromUrl && seedFromUrl >= 1
-      ? seedFromUrl
-      : Math.floor(Math.random() * 2147483647) + 1;
+  const seed = seedFromUrl && seedFromUrl >= 1 ? seedFromUrl : getRandomSeed();
 
   return normalizeParams({
     rows: parseNumber("rows"),
@@ -212,7 +211,7 @@ function App() {
     setBatchSizeInput(event.target.value);
   };
 
-  const handleGenerateSheet = () => {
+  const generateSheet = (forcedSeed?: number) => {
     const rows = clamp(Number(rowsInput) || params.rows, 1, 25);
     const cols = clamp(Number(colsInput) || params.cols, 1, 25);
     const interval = clamp(
@@ -226,7 +225,6 @@ function App() {
       interval,
     );
 
-    const originalIntervalCount = intervalCount;
     if (interval % intervalCount !== 0) {
       intervalCount = chooseClosestDivisor(interval, intervalCount);
       window.alert(
@@ -242,7 +240,8 @@ function App() {
       setStartTimeInput(formatTime(params.startTime));
     }
 
-    const seed = clamp(Number(seedInput) || params.seed, 1, 2147483647);
+    const seed =
+      forcedSeed ?? clamp(Number(seedInput) || params.seed, 1, 2147483647);
 
     setParams(
       normalizeParams({
@@ -261,6 +260,15 @@ function App() {
     setIntervalCountInput(String(intervalCount));
     setStartTimeInput(formatTime(startTime));
     setSeedInput(String(seed));
+  };
+
+  const handleGenerateSheet = () => {
+    generateSheet();
+  };
+
+  const handleGenerateNewSheet = () => {
+    const newSeed = getRandomSeed();
+    generateSheet(newSeed);
   };
 
   const handleGenerateBatch = () => {
@@ -386,6 +394,15 @@ function App() {
               }}
             />
           </label>
+          <button
+            type="button"
+            className="generate-sheet-button"
+            onClick={handleGenerateSheet}
+          >
+            Generate sheet
+          </button>
+        </div>
+        <div className="control-row">
           <label>
             Seed
             <input
@@ -405,10 +422,10 @@ function App() {
           </label>
           <button
             type="button"
-            className="generate-sheet-button"
-            onClick={handleGenerateSheet}
+            className="generate-new-sheet-button"
+            onClick={handleGenerateNewSheet}
           >
-            Generate sheet
+            Generate new sheet(s)
           </button>
         </div>
 
