@@ -74,7 +74,7 @@ h1 {
   margin-top: 16px;
 }
 
-.interval-submit-button {
+.generate-sheet-button {
   padding: 14px 20px;
   border-radius: 14px;
   border: none;
@@ -84,7 +84,7 @@ h1 {
   cursor: pointer;
 }
 
-.interval-submit-button:hover {
+.generate-sheet-button:hover {
   opacity: 0.95;
 }
 

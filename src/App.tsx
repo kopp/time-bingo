@@ -8,6 +8,7 @@ type Params = {
   intervalLengthMin: number;
   intervalCount: number;
   startTime: number;
+  seed: number;
 };
 
 const DEFAULT_ROWS = 5;
@@ -17,6 +18,20 @@ const DEFAULT_START_TIME = 9 * 60; // 9:00 in minutes
 
 const clamp = (value: number, min: number, max: number) =>
   Number.isNaN(value) ? min : Math.min(Math.max(value, min), max);
+
+class SeededRNG {
+  private seed: number;
+
+  constructor(seed: number) {
+    this.seed = seed;
+    this.next();
+  }
+
+  next(): number {
+    this.seed = (this.seed * 9301 + 49297) % 233280;
+    return this.seed / 233280;
+  }
+}
 
 const getDivisors = (value: number) => {
   const divisors: number[] = [];
@@ -82,12 +97,15 @@ const normalizeParams = (raw: Partial<Params>): Params => {
     }
   }
 
+  const seed = clamp(raw.seed ?? 1, 1, 2147483647);
+
   return {
     rows,
     cols,
     intervalLengthMin: interval,
     intervalCount,
     startTime,
+    seed,
   };
 };
 
@@ -104,12 +122,19 @@ const parseSearchParams = (search: string): Params => {
       ? parseTime(startTimeStr)
       : undefined;
 
+  const seedFromUrl = parseNumber("seed");
+  const seed =
+    seedFromUrl && seedFromUrl >= 1
+      ? seedFromUrl
+      : Math.floor(Math.random() * 2147483647) + 1;
+
   return normalizeParams({
     rows: parseNumber("rows"),
     cols: parseNumber("cols"),
     intervalLengthMin: parseNumber("interval"),
     intervalCount: parseNumber("intervalCount"),
     startTime,
+    seed,
   });
 };
 
@@ -132,17 +157,19 @@ const generateIntervals = (
   });
 };
 
-const shuffle = <T,>(items: T[]) => {
+const shuffle = <T,>(items: T[], rng: SeededRNG) => {
   const copy = [...items];
   for (let i = copy.length - 1; i > 0; i -= 1) {
-    const j = Math.floor(Math.random() * (i + 1));
+    const j = Math.floor(rng.next() * (i + 1));
     [copy[i], copy[j]] = [copy[j], copy[i]];
   }
   return copy;
 };
 
-const getRandomGrid = (items: string[], count: number) =>
-  shuffle(items).slice(0, count);
+const getRandomGrid = (items: string[], count: number, seed: number) => {
+  const rng = new SeededRNG(seed);
+  return shuffle(items, rng).slice(0, count);
+};
 
 function App() {
   const [params, setParams] = useState<Params>(() =>
@@ -159,6 +186,7 @@ function App() {
   const [startTimeInput, setStartTimeInput] = useState(
     formatTime(params.startTime),
   );
+  const [seedInput, setSeedInput] = useState(String(params.seed));
   const [batchSizeInput, setBatchSizeInput] = useState(String(1));
   const [batchGrids, setBatchGrids] = useState<string[][]>([]);
 
@@ -169,6 +197,7 @@ function App() {
       interval: String(params.intervalLengthMin),
       intervalCount: String(params.intervalCount),
       startTime: formatTime(params.startTime),
+      seed: String(params.seed),
     }).toString();
 
     const nextUrl = `${window.location.pathname}?${search}`;
@@ -213,6 +242,8 @@ function App() {
       setStartTimeInput(formatTime(params.startTime));
     }
 
+    const seed = clamp(Number(seedInput) || params.seed, 1, 2147483647);
+
     setParams(
       normalizeParams({
         rows,
@@ -220,6 +251,7 @@ function App() {
         intervalLengthMin: interval,
         intervalCount,
         startTime,
+        seed,
       }),
     );
 
@@ -228,6 +260,7 @@ function App() {
     setIntervalInput(String(interval));
     setIntervalCountInput(String(intervalCount));
     setStartTimeInput(formatTime(startTime));
+    setSeedInput(String(seed));
   };
 
   const handleGenerateBatch = () => {
@@ -238,8 +271,12 @@ function App() {
       return;
     }
     setBatchGrids(
-      Array.from({ length: batchSize }, () =>
-        getRandomGrid(intervalLabels, params.rows * params.cols),
+      Array.from({ length: batchSize }, (_, index) =>
+        getRandomGrid(
+          intervalLabels,
+          params.rows * params.cols,
+          params.seed + index,
+        ),
       ),
     );
   };
@@ -255,8 +292,8 @@ function App() {
   );
 
   const gridItems = useMemo(
-    () => getRandomGrid(intervalLabels, params.rows * params.cols),
-    [intervalLabels, params.rows, params.cols],
+    () => getRandomGrid(intervalLabels, params.rows * params.cols, params.seed),
+    [intervalLabels, params.rows, params.cols, params.seed],
   );
 
   return (
@@ -346,6 +383,23 @@ function App() {
                   startTimeInput !== "" && !isValidTimeFormat(startTimeInput)
                     ? "#ffcccc"
                     : "",
+              }}
+            />
+          </label>
+          <label>
+            Seed
+            <input
+              type="number"
+              min={1}
+              max={2147483647}
+              value={seedInput}
+              onChange={(event) => setSeedInput(event.target.value)}
+              onKeyDown={(event) => {
+                if (event.key === "Enter") handleGenerateSheet();
+              }}
+              style={{
+                backgroundColor: "#f0f0f0",
+                border: "1px solid #ccc",
               }}
             />
           </label>
